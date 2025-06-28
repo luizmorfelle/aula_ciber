@@ -1,19 +1,19 @@
 name: CI - Snapshot
 run-name: CI snapshot disparada por ${{ github.actor }}
 
-on:   
+on:
   # inicia o workflow manualmente
   workflow_dispatch:
     inputs:
       tipo_versao:
         type: choice
-        description: 'Tipo de build'     
+        description: "Tipo de build"
         required: true
-        default: 'minor'
+        default: "minor"
         options:
-        - patch
-        - minor
-        - major
+          - patch
+          - minor
+          - major
 
 jobs:
   GerarVersao:
@@ -86,7 +86,7 @@ jobs:
         with:
           name: backend
           path: build/ci_cd_projeto/backend/backend.zip
-  
+
   teste_back:
     name: Teste
     needs: [build_back]
@@ -131,27 +131,38 @@ jobs:
         with:
           name: frontend
           path: build/ci_cd_projeto/frontend/frontend.zip
-
-  empacotar:
-    name: Empacotar
-    needs: [teste_back, build_front, GerarVersao]
+  sonarqube:
+    name: SonarQube
+    needs: [build_front, teste_back]
     runs-on: ubuntu-latest
     steps:
-     - name: Download Zip Frontend
-       uses: actions/download-artifact@v4
-       with:
-         name: frontend
-     - name: Download Zip Backend
-       uses: actions/download-artifact@v4
-       with:
-         name: backend
-     - name: Criar Versão / Release e Tag
-       uses: softprops/action-gh-release@v2
-       env:
-         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-       with:
-         body: Release ${{ needs.GerarVersao.outputs.versao }}
-         tag_name: ${{ needs.GerarVersao.outputs.versao }}
-         fail_on_unmatched_files: true
-         files: backend.zip, frontend.zip
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  empacotar:
+    name: Empacotar
+    needs: [GerarVersao, sonarqube]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Zip Frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend
+      - name: Download Zip Backend
+        uses: actions/download-artifact@v4
+        with:
+          name: backend
+      - name: Criar Versão / Release e Tag
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          body: Release ${{ needs.GerarVersao.outputs.versao }}
+          tag_name: ${{ needs.GerarVersao.outputs.versao }}
+          fail_on_unmatched_files: true
+          files: backend.zip, frontend.zip
